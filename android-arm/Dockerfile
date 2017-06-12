@@ -16,7 +16,7 @@ ENV AS=${CROSS_ROOT}/bin/${CROSS_TRIPLE}-as \
     CXX=${CROSS_ROOT}/bin/${CROSS_TRIPLE}-g++ \
     LD=${CROSS_ROOT}/bin/${CROSS_TRIPLE}-ld
 
-ENV ANDROID_NDK_REVISION 13b
+ENV ANDROID_NDK_REVISION 14b
 RUN mkdir -p /build && \
     cd /build && \
     curl -O https://dl.google.com/android/repository/android-ndk-r${ANDROID_NDK_REVISION}-linux-x86_64.zip && \
@@ -24,7 +24,7 @@ RUN mkdir -p /build && \
     cd android-ndk-r${ANDROID_NDK_REVISION} && \
     ./build/tools/make_standalone_toolchain.py \
       --arch arm \
-      --api 16 \
+      --api 21 \
       --stl=libc++ \
       --install-dir=${CROSS_ROOT} && \
     cd / && \
