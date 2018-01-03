@@ -16,3 +16,6 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_SYSROOT /usr/${cross_triple}/sysroot)
 
 set(CMAKE_CROSSCOMPILING_EMULATOR /usr/bin/qemu-arm)
+
+set( ANDROID True )
+set( BUILD_ANDROID True )
