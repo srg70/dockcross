@@ -13,18 +13,28 @@ ORG = dockcross
 BIN = ./bin
 
 # These images are built using the "build implicit rule"
-STANDARD_IMAGES = android-arm linux-x86 linux-x64 linux-arm64 linux-armv5 linux-armv6 linux-armv7 linux-mipsel linux-ppc64le windows-x86 windows-x64
+STANDARD_IMAGES = linux-s390x android-arm android-arm64 linux-x86 linux-x64 linux-arm64 linux-armv5 linux-armv6 linux-armv7 linux-armv7a linux-mips linux-mipsel linux-ppc64le windows-static-x86 windows-static-x64 windows-static-x64-posix windows-shared-x86 windows-shared-x64 windows-shared-x64-posix
+
+# Generated Dockerfiles.
+GEN_IMAGES = linux-s390x linux-mips manylinux-x86 manylinux-x64 web-wasm linux-arm64 windows-static-x86 windows-static-x64 windows-static-x64-posix windows-shared-x86 windows-shared-x64 windows-shared-x64-posix linux-armv7 linux-armv7a linux-armv5
+GEN_IMAGE_DOCKERFILES = $(addsuffix /Dockerfile,$(GEN_IMAGES))
 
 # These images are expected to have explicit rules for *both* build and testing
-NON_STANDARD_IMAGES = browser-asmjs manylinux-x64 manylinux-x86
+NON_STANDARD_IMAGES = web-wasm manylinux-x64 manylinux-x86
+
+DOCKER_COMPOSITE_SOURCES = common.docker common.debian common.manylinux common.crosstool common.windows
 
 # This list all available images
 IMAGES = $(STANDARD_IMAGES) $(NON_STANDARD_IMAGES)
 
 # Optional arguments for test runner (test/run.py) associated with "testing implicit rule"
 linux-ppc64le.test_ARGS = --languages C
-windows-x86.test_ARGS = --exe-suffix ".exe"
-windows-x64.test_ARGS = --exe-suffix ".exe"
+windows-static-x86.test_ARGS = --exe-suffix ".exe"
+windows-static-x64.test_ARGS = --exe-suffix ".exe"
+windows-static-x64-posix.test_ARGS = --exe-suffix ".exe"
+windows-shared-x86.test_ARGS = --exe-suffix ".exe"
+windows-shared-x64.test_ARGS = --exe-suffix ".exe"
+windows-shared-x64-posix.test_ARGS = --exe-suffix ".exe"
 
 # On CircleCI, do not attempt to delete container
 # See https://circleci.com/docs/docker-btrfs-error/
@@ -32,6 +42,9 @@ RM = --rm
 ifeq ("$(CIRCLECI)", "true")
 	RM =
 endif
+
+# Tag images with date and Git short hash in addition to revision
+TAG = $(shell date '+%Y%m%d')-$(shell git rev-parse --short HEAD)
 
 #
 # images: This target builds all IMAGES (because it is the first one, it is built by default)
@@ -44,37 +57,60 @@ images: base $(IMAGES)
 test: base.test $(addsuffix .test,$(IMAGES))
 
 #
-# browser-asmjs
+# Generic Targets (can specialize later).
 #
-browser-asmjs: browser-asmjs/Dockerfile.in common.docker common.debian
-	sed -e '/common.docker/ r common.docker' -e '/common.debian/ r common.debian' $@/Dockerfile.in > $@/Dockerfile
+
+$(GEN_IMAGE_DOCKERFILES) Dockerfile: %Dockerfile: %Dockerfile.in $(DOCKER_COMPOSITE_SOURCES)
+	sed \
+		-e '/common.docker/ r common.docker' \
+		-e '/common.debian/ r common.debian' \
+		-e '/common.manylinux/ r common.manylinux' \
+		-e '/common.crosstool/ r common.crosstool' \
+		-e '/common.windows/ r common.windows' \
+		$< > $@
+
+#
+# web-wasm
+#
+web-wasm: web-wasm/Dockerfile
 	mkdir -p $@/imagefiles && cp -r imagefiles $@/
-	cp -r test browser-asmjs/
-	$(DOCKER) build -t $(ORG)/browser-asmjs \
-		--build-arg IMAGE=$(ORG)/browser-asmjs \
+	cp -r test web-wasm/
+	$(DOCKER) build -t $(ORG)/web-wasm:latest \
+		--build-arg IMAGE=$(ORG)/web-wasm \
 		--build-arg VCS_REF=`git rev-parse --short HEAD` \
 		--build-arg VCS_URL=`git config --get remote.origin.url` \
 		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
-		browser-asmjs
-	rm -rf browser-asmjs/test
+		web-wasm
+	$(DOCKER) build -t $(ORG)/web-wasm:$(TAG) \
+		--build-arg IMAGE=$(ORG)/web-wasm \
+		--build-arg VERSION=$(TAG) \
+		--build-arg VCS_REF=`git rev-parse --short HEAD` \
+		--build-arg VCS_URL=`git config --get remote.origin.url` \
+		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
+		web-wasm
+	rm -rf web-wasm/test
 	rm -rf $@/imagefiles
 
-browser-asmjs.test: browser-asmjs
-	cp -r test browser-asmjs/
-	$(DOCKER) run $(RM) dockcross/browser-asmjs > $(BIN)/dockcross-browser-asmjs && chmod +x $(BIN)/dockcross-browser-asmjs
-	$(BIN)/dockcross-browser-asmjs python test/run.py --exe-suffix ".js"
-	rm -rf browser-asmjs/test
+web-wasm.test: web-wasm
+	cp -r test web-wasm/
+	$(DOCKER) run $(RM) dockcross/web-wasm > $(BIN)/dockcross-web-wasm && chmod +x $(BIN)/dockcross-web-wasm
+	$(BIN)/dockcross-web-wasm python test/run.py --exe-suffix ".js"
+	rm -rf web-wasm/test
 
 #
 # manylinux-x64
-#
-manylinux-x64/Dockerfile: manylinux-x64/Dockerfile.in common.docker common.manylinux
-	sed -e '/common.docker/ r common.docker' -e '/common.manylinux/ r common.manylinux' manylinux-x64/Dockerfile.in > manylinux-x64/Dockerfile
 
 manylinux-x64: manylinux-x64/Dockerfile
 	mkdir -p $@/imagefiles && cp -r imagefiles $@/
-	$(DOCKER) build -t $(ORG)/manylinux-x64 \
+	$(DOCKER) build -t $(ORG)/manylinux-x64:latest \
 		--build-arg IMAGE=$(ORG)/manylinux-x64 \
+		--build-arg VCS_REF=`git rev-parse --short HEAD` \
+		--build-arg VCS_URL=`git config --get remote.origin.url` \
+		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
+		-f manylinux-x64/Dockerfile .
+	$(DOCKER) build -t $(ORG)/manylinux-x64:$(TAG) \
+		--build-arg IMAGE=$(ORG)/manylinux-x64 \
+		--build-arg VERSION=$(TAG) \
 		--build-arg VCS_REF=`git rev-parse --short HEAD` \
 		--build-arg VCS_URL=`git config --get remote.origin.url` \
 		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
@@ -88,13 +124,18 @@ manylinux-x64.test: manylinux-x64
 #
 # manylinux-x86
 #
-manylinux-x86/Dockerfile: manylinux-x86/Dockerfile.in common.docker common.manylinux
-	sed -e '/common.docker/ r common.docker' -e '/common.manylinux/ r common.manylinux' manylinux-x86/Dockerfile.in > manylinux-x86/Dockerfile
 
 manylinux-x86: manylinux-x86/Dockerfile
 	mkdir -p $@/imagefiles && cp -r imagefiles $@/
-	$(DOCKER) build -t $(ORG)/manylinux-x86 \
+	$(DOCKER) build -t $(ORG)/manylinux-x86:latest \
 		--build-arg IMAGE=$(ORG)/manylinux-x86 \
+		--build-arg VCS_REF=`git rev-parse --short HEAD` \
+		--build-arg VCS_URL=`git config --get remote.origin.url` \
+		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
+		-f manylinux-x86/Dockerfile .
+	$(DOCKER) build -t $(ORG)/manylinux-x86:$(TAG) \
+		--build-arg IMAGE=$(ORG)/manylinux-x86 \
+		--build-arg VERSION=$(TAG) \
 		--build-arg VCS_REF=`git rev-parse --short HEAD` \
 		--build-arg VCS_URL=`git config --get remote.origin.url` \
 		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
@@ -108,11 +149,9 @@ manylinux-x86.test: manylinux-x86
 #
 # base
 #
-Dockerfile: Dockerfile.in common.docker common.debian
-	sed -e '/common.docker/ r common.docker' -e '/common.debian/ r common.debian' Dockerfile.in > Dockerfile
 
 base: Dockerfile imagefiles/
-	$(DOCKER) build -t $(ORG)/base \
+	$(DOCKER) build -t $(ORG)/base:latest \
 		--build-arg IMAGE=$(ORG)/base \
 		--build-arg VCS_URL=`git config --get remote.origin.url` \
 		.
@@ -131,10 +170,18 @@ $(VERBOSE).SILENT: display_images
 #
 # build implicit rule
 #
-$(STANDARD_IMAGES): base
+
+$(STANDARD_IMAGES): %: %/Dockerfile base
 	mkdir -p $@/imagefiles && cp -r imagefiles $@/
-	$(DOCKER) build -t $(ORG)/$@ \
+	$(DOCKER) build -t $(ORG)/$@:latest \
 		--build-arg IMAGE=$(ORG)/$@ \
+		--build-arg VCS_REF=`git rev-parse --short HEAD` \
+		--build-arg VCS_URL=`git config --get remote.origin.url` \
+		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
+		$@
+	$(DOCKER) build -t $(ORG)/$@:$(TAG) \
+		--build-arg IMAGE=$(ORG)/$@ \
+		--build-arg VERSION=$(TAG) \
 		--build-arg VCS_REF=`git rev-parse --short HEAD` \
 		--build-arg VCS_URL=`git config --get remote.origin.url` \
 		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \

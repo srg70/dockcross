@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This is the entrypoint script for the dockerfile. Executed in the
 # container at runtime.
@@ -9,7 +9,9 @@ if [[ $# == 0 ]]; then
     if [[ -n $DEFAULT_DOCKCROSS_IMAGE ]]; then
         head -n 2 /dockcross/dockcross
         echo "DEFAULT_DOCKCROSS_IMAGE=$DEFAULT_DOCKCROSS_IMAGE"
-        tail -n +4 /dockcross/dockcross
+        tail -n +4 /dockcross/dockcross |
+          sed -e "s@dockcross\/linux\-armv7@${DEFAULT_DOCKCROSS_IMAGE}@g" |
+          sed -e "s@dockcross\-linux\-armv7@${DEFAULT_DOCKCROSS_IMAGE//[\/:]/-}@g"
     else
         cat /dockcross/dockcross
     fi
@@ -24,11 +26,10 @@ if [[ -n $BUILDER_UID ]] && [[ -n $BUILDER_GID ]]; then
 
     groupadd -o -g $BUILDER_GID $BUILDER_GROUP 2> /dev/null
     useradd -o -m -g $BUILDER_GID -u $BUILDER_UID $BUILDER_USER 2> /dev/null
-    echo "$BUILDER_USER    ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
     export HOME=/home/${BUILDER_USER}
     shopt -s dotglob
     cp -r /root/* $HOME/
-    chown -R $BUILDER_UID:$BUILDER_GID $HOME/*
+    chown -R $BUILDER_UID:$BUILDER_GID $HOME
 
     # Additional updates specific to the image
     if [[ -e /dockcross/pre_exec.sh ]]; then
@@ -37,11 +38,15 @@ if [[ -n $BUILDER_UID ]] && [[ -n $BUILDER_GID ]]; then
 
     # Execute project specific pre execution hook
     if [[ -e /work/.dockcross ]]; then
-       chpst -u :$BUILDER_UID:$BUILDER_GID /work/.dockcross
+       gosu $BUILDER_UID:$BUILDER_GID /work/.dockcross
     fi
 
+    # Enable passwordless sudo capabilities for the user
+    chown root:$BUILDER_GID $(which gosu)
+    chmod +s $(which gosu); sync
+
     # Run the command as the specified user/group.
-    exec chpst -u :$BUILDER_UID:$BUILDER_GID "$@"
+    exec gosu $BUILDER_UID:$BUILDER_GID "$@"
 else
     # Just run the command as root.
     exec "$@"

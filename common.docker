@@ -1,35 +1,40 @@
-WORKDIR /usr/share
-RUN git clone "https://github.com/nojhan/liquidprompt.git" && \
-  cd liquidprompt && \
-  git checkout v_1.11
-COPY imagefiles/.bashrc /root/
-
 WORKDIR /usr/src
 
-COPY imagefiles/install-openssl.sh imagefiles/install-cmake.sh /dockcross/
+ARG GIT_VERSION=2.20.1
+ARG CMAKE_VERSION=3.13.2
+
+# Image build scripts
+COPY \
+  imagefiles/build-and-install-cmake.sh \
+  imagefiles/build-and-install-curl.sh \
+  imagefiles/build-and-install-git.sh \
+  imagefiles/build-and-install-ninja.sh \
+  imagefiles/build-and-install-openssl.sh \
+  imagefiles/build-and-install-openssh.sh \
+  imagefiles/install-cmake-binary.sh \
+  imagefiles/install-liquidprompt-binary.sh \
+  imagefiles/install-python-packages.sh \
+  imagefiles/utils.sh \
+  /buildscripts/
+
 RUN \
-  if [ "$DEFAULT_DOCKCROSS_IMAGE" = "dockcross/manylinux-x86" ]; then \
-    /dockcross/install-openssl.sh -32 && \
-    /dockcross/install-cmake.sh -32 || exit 1; \
-  else \
-    /dockcross/install-openssl.sh && \
-    /dockcross/install-cmake.sh || exit 1; \
-  fi; \
-  rm /dockcross/install-openssl.sh /dockcross/install-cmake.sh
-
-COPY imagefiles/cmake.sh /usr/local/bin/cmake
-COPY imagefiles/ccmake.sh /usr/local/bin/ccmake
-
-COPY imagefiles/install-ninja.sh /dockcross/
-RUN \
-  /dockcross/install-ninja.sh \
-    -python $([ -e /opt/python/cp35-cp35m/bin/python ] && echo "/opt/python/cp35-cp35m/bin/python" || echo "python") && \
-  rm /dockcross/install-ninja.sh
-
-RUN $([ -e /opt/python/cp35-cp35m/bin/python ] && echo "/opt/python/cp35-cp35m/bin/python" || echo "python") -m pip install conan
+  X86_FLAG=$([ "$DEFAULT_DOCKCROSS_IMAGE" = "dockcross/manylinux-x86" ] && echo "-32" || echo "") && \
+  /buildscripts/build-and-install-openssl.sh $X86_FLAG && \
+  /buildscripts/build-and-install-openssh.sh && \
+  /buildscripts/build-and-install-curl.sh && \
+  /buildscripts/build-and-install-git.sh && \
+  /buildscripts/install-cmake-binary.sh $X86_FLAG && \
+  /buildscripts/install-liquidprompt-binary.sh && \
+  PYTHON=$([ -e /opt/python/cp35-cp35m/bin/python ] && echo "/opt/python/cp35-cp35m/bin/python" || echo "python") && \
+  /buildscripts/install-python-packages.sh -python ${PYTHON} && \
+  /buildscripts/build-and-install-ninja.sh -python ${PYTHON} && \
+  rm -rf /buildscripts
 
 RUN echo "root:root" | chpasswd
 WORKDIR /work
 ENTRYPOINT ["/dockcross/entrypoint.sh"]
 
+# Runtime scripts
+COPY imagefiles/cmake.sh /usr/local/bin/cmake
+COPY imagefiles/ccmake.sh /usr/local/bin/ccmake
 COPY imagefiles/entrypoint.sh imagefiles/dockcross /dockcross/

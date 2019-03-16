@@ -11,12 +11,14 @@ ENV CROSS_TRIPLE=arm-linux-androideabi
 ENV CROSS_ROOT=/usr/${CROSS_TRIPLE}
 ENV AS=${CROSS_ROOT}/bin/${CROSS_TRIPLE}-as \
     AR=${CROSS_ROOT}/bin/${CROSS_TRIPLE}-ar \
-    CC=${CROSS_ROOT}/bin/${CROSS_TRIPLE}-gcc \
+    CC=${CROSS_ROOT}/bin/${CROSS_TRIPLE}-clang \
     CPP=${CROSS_ROOT}/bin/${CROSS_TRIPLE}-cpp \
-    CXX=${CROSS_ROOT}/bin/${CROSS_TRIPLE}-g++ \
-    LD=${CROSS_ROOT}/bin/${CROSS_TRIPLE}-ld
+    CXX=${CROSS_ROOT}/bin/${CROSS_TRIPLE}-clang++ \
+    LD=${CROSS_ROOT}/bin/${CROSS_TRIPLE}-ld \
+    FC=${CROSS_ROOT}/bin/${CROSS_TRIPLE}-gfortran
 
-ENV ANDROID_NDK_REVISION 14b
+ENV ANDROID_NDK_REVISION 16b
+ENV ANDROID_NDK_API 21
 RUN mkdir -p /build && \
     cd /build && \
     curl -O https://dl.google.com/android/repository/android-ndk-r${ANDROID_NDK_REVISION}-linux-x86_64.zip && \
@@ -24,7 +26,7 @@ RUN mkdir -p /build && \
     cd android-ndk-r${ANDROID_NDK_REVISION} && \
     ./build/tools/make_standalone_toolchain.py \
       --arch arm \
-      --api 21 \
+      --api ${ANDROID_NDK_API} \
       --stl=libc++ \
       --install-dir=${CROSS_ROOT} && \
     cd / && \
@@ -32,19 +34,19 @@ RUN mkdir -p /build && \
     find ${CROSS_ROOT} -exec chmod a+r '{}' \; && \
     find ${CROSS_ROOT} -executable -exec chmod a+x '{}' \;
 
-
-ENV DEFAULT_DOCKCROSS_IMAGE dockcross/android-arm
-
 COPY Toolchain.cmake ${CROSS_ROOT}/
 ENV CMAKE_TOOLCHAIN_FILE ${CROSS_ROOT}/Toolchain.cmake
 
 # Build-time metadata as defined at http://label-schema.org
 ARG BUILD_DATE
-ARG IMAGE
+ARG IMAGE=dockcross/android-arm
+ARG VERSION=latest
 ARG VCS_REF
 ARG VCS_URL
 LABEL org.label-schema.build-date=$BUILD_DATE \
       org.label-schema.name=$IMAGE \
+      org.label-schema.version=$VERSION \
       org.label-schema.vcs-ref=$VCS_REF \
       org.label-schema.vcs-url=$VCS_URL \
       org.label-schema.schema-version="1.0"
+ENV DEFAULT_DOCKCROSS_IMAGE ${IMAGE}:${VERSION}
