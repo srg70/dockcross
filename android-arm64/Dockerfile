@@ -41,6 +41,7 @@ RUN mkdir -p /build && \
 
 COPY Toolchain.cmake ${CROSS_ROOT}/
 ENV CMAKE_TOOLCHAIN_FILE ${CROSS_ROOT}/Toolchain.cmake
+ENV ANDROID_NDK_HOME ${CROSS_ROOT}
 
 # Build-time metadata as defined at http://label-schema.org
 ARG BUILD_DATE

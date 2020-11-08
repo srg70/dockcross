@@ -18,3 +18,7 @@ set(CMAKE_SYSROOT $ENV{CROSS_ROOT}/sysroot)
 
 set(CMAKE_CROSSCOMPILING_EMULATOR /usr/bin/qemu-arm)
 
+set( ANDROID True )
+set( BUILD_ANDROID True )
+
+
