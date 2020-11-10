@@ -9,6 +9,7 @@ set(CMAKE_ANDROID_ARM_NEON 1)
 
 set(CMAKE_C_COMPILER /usr/${cross_triple}/bin/${cross_triple}-clang)
 set(CMAKE_CXX_COMPILER /usr/${cross_triple}/bin/${cross_triple}-clang++)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(CMAKE_FIND_ROOT_PATH /usr/${cross_triple})
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
